@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>ERC-20 Balance Checker (ethers.js fixed)</title>
+  <!-- ✅ Correct ethers.js (UMD build) -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.6.2/dist/ethers.umd.min.js"></script>
+
+  <style>
+    body { font-family: system-ui, Arial; max-width: 760px; margin: 40px auto; padding: 0 16px; }
+    h1 { font-size: 20px; margin-bottom: 8px; }
+    .row { margin: 8px 0; display:flex; gap:8px; align-items:center; }
+    input[type="text"] { flex:1; padding:8px; font-size:14px; }
+    button { padding:8px 12px; font-size:14px; cursor:pointer; border-radius:6px; }
+    #result { margin-top:12px; font-weight:600; }
+    .small { color:#666; font-size:13px; }
+    label { font-size:13px; color:#333; }
+  </style>
+</head>
+
+<body>
+  <h1>ERC-20 Balance Checker (ethers.js)</h1>
+  <div class="small">Make sure MetaMask is installed and connected to the same network as your contract.</div>
+
+  <div class="row">
+    <button id="connectBtn">Connect Wallet</button>
+    <div id="status" class="small">Not connected</div>
+  </div>
+
+  <div class="row">
+    <label style="width:130px">Token contract</label>
+    <input id="contract" placeholder="0xYourTokenContractAddress" type="text" />
+  </div>
+
+  <div class="row">
+    <label style="width:130px">Address to check</label>
+    <input id="address" placeholder="Leave empty to use connected wallet" type="text" />
+  </div>
+
+  <div class="row">
+    <button id="checkBtn">Check Balance</button>
+    <div id="spinner" style="display:none;">Checking…</div>
+  </div>
+
+  <div id="result">Balance: —</div>
+  <div id="details" class="small"></div>
+
+  <!-- ✅ Our JavaScript starts here -->
+  <script>
+    let provider, signer, connectedAddress;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const checkBtn = document.getElementById('checkBtn');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    const details = document.getElementById('details');
+    const spinner = document.getElementById('spinner');
+
+    connectBtn.onclick = connectWallet;
+    checkBtn.onclick = checkBalance;
+
+    // ✅ Step 1: Connect Wallet
+    async function connectWallet() {
+      if (!window.ethereum) {
+        alert('MetaMask not detected. Please install MetaMask.');
+        return;
+      }
+      try {
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+        connectedAddress = await signer.getAddress();
+        status.innerText = `Connected: ${connectedAddress}`;
+      } catch (err) {
+        console.error(err);
+        status.innerText = 'Connection failed';
+        alert('Connection failed: ' + (err.message || err));
+      }
+    }
+
+    // ✅ Step 2: Check balance
+    async function checkBalance() {
+      try {
+        result.innerText = 'Balance: —';
+        details.innerText = '';
+        spinner.style.display = 'inline';
+
+        if (!window.ethereum) { alert('MetaMask not detected.'); spinner.style.display='none'; return; }
+
+        if (!provider) {
+          provider = new ethers.BrowserProvider(window.ethereum);
+          signer = await provider.getSigner();
+          connectedAddress = await signer.getAddress();
+          status.innerText = `Connected: ${connectedAddress}`;
+        }
+
+        const contractAddressInput = document.getElementById('contract').value.trim();
+        if (!contractAddressInput) { alert('Enter contract address'); spinner.style.display='none'; return; }
+
+        let contractAddress, targetAddress;
+        try {
+          contractAddress = ethers.getAddress(contractAddressInput);
+        } catch (e) {
+          alert('Invalid contract address');
+          spinner.style.display='none';
+          return;
+        }
+
+        const addrInput = document.getElementById('address').value.trim();
+        if (addrInput) {
+          try { targetAddress = ethers.getAddress(addrInput); } 
+          catch(e){ alert('Invalid target address'); spinner.style.display='none'; return; }
+        } else {
+          targetAddress = connectedAddress;
+        }
+
+        // ✅ ERC-20 ABI for reading
+        const abi = [
+          "function balanceOf(address) view returns (uint256)",
+          "function decimals() view returns (uint8)",
+          "function symbol() view returns (string)"
+        ];
+
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+
+        // Try to read decimals and symbol
+        let decimals = 18;
+        try { decimals = Number(await contract.decimals()); } catch(e){}
+        let symbol = '';
+        try { symbol = await contract.symbol(); } catch(e){}
+
+        const raw = await contract.balanceOf(targetAddress);
+        const formatted = ethers.formatUnits(raw, decimals);
+
+        result.innerText = `Balance: ${formatted}${symbol ? ' ' + symbol : ''}`;
+        details.innerText = `Raw: ${raw.toString()} | Decimals: ${decimals} | Address: ${targetAddress}`;
+
+      } catch (err) {
+        console.error(err);
+        alert('Error: ' + (err?.message || err));
+      } finally {
+        spinner.style.display = 'none';
+      }
+    }
+  </script>
+</body>
+</html>
