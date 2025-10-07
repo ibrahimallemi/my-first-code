@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Web3 Day 26 — EventBank Event Listener</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; padding: 20px; line-height: 1.5; }
+    h1 { font-size: 20px; }
+    button { margin: 4px; padding: 8px 12px; cursor: pointer; }
+    textarea { width: 100%; height: 160px; font-family: monospace; }
+    #logs { width: 100%; height: 250px; border: 1px solid #ccc; padding: 8px; overflow: auto; background: #f9f9f9; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Web3 Day 26 — EventBank Event Listener</h1>
+
+  <label>Contract Address:</label><br>
+  <input id="contractAddress" style="width:100%;padding:8px" placeholder="Paste your deployed contract address here"><br><br>
+
+  <label>Contract ABI:</label>
+  <textarea id="contractABI">[
+    {"inputs":[],"name":"deposit","outputs":[],"stateMutability":"payable","type":"function"},
+    {"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"},
+    {"inputs":[],"name":"getContractBalance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+    {"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"balances","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+    {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"account","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"Deposit","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"account","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"Withdraw","type":"event"}
+  ]</textarea><br>
+
+  <button id="connectBtn">Connect Wallet</button>
+  <button id="loadBtn">Load Contract</button>
+  <button id="listenDepositBtn">Start Listening - Deposit</button>
+  <button id="listenWithdrawBtn">Start Listening - Withdraw</button>
+  <button id="stopBtn">Stop All</button>
+
+  <h3>Event Logs:</h3>
+  <div id="logs"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script>
+    let provider, signer, contract;
+
+    function log(msg) {
+      const logs = document.getElementById("logs");
+      const time = new Date().toLocaleTimeString();
+      logs.textContent = `[${time}] ${msg}\n` + logs.textContent;
+    }
+
+    document.getElementById("connectBtn").onclick = async () => {
+      if (!window.ethereum) return alert("Install MetaMask");
+      provider = new ethers.providers.Web3Provider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      signer = provider.getSigner();
+      const address = await signer.getAddress();
+      log("Connected: " + address);
+    };
+
+    document.getElementById("loadBtn").onclick = async () => {
+      const addr = document.getElementById("contractAddress").value;
+      const abi = JSON.parse(document.getElementById("contractABI").value);
+      contract = new ethers.Contract(addr, abi, provider);
+      log("Contract loaded: " + addr);
+    };
+
+    document.getElementById("listenDepositBtn").onclick = () => {
+      if (!contract) return alert("Load contract first");
+      contract.on("Deposit", (account, amount, event) => {
+        log(`Deposit: ${account} sent ${ethers.utils.formatEther(amount)} ETH`);
+      });
+      log("Listening for Deposit events...");
+    };
+
+    document.getElementById("listenWithdrawBtn").onclick = () => {
+      if (!contract) return alert("Load contract first");
+      contract.on("Withdraw", (account, amount, event) => {
+        log(`Withdraw: ${account} withdrew ${ethers.utils.formatEther(amount)} ETH`);
+      });
+      log("Listening for Withdraw events...");
+    };
+
+    document.getElementById("stopBtn").onclick = () => {
+      if (contract) contract.removeAllListeners();
+      log("Stopped all listeners.");
+    };
+  </script>
+</body>
+</html>
