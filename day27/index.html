@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🗳️ Simple Voting DApp</title>
+
+    <!-- Load Ethers.js -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  </head>
+
+  <body>
+    <h2>🗳️ Simple Voting DApp (Yes / No)</h2>
+
+    <button id="connectButton">Connect Wallet</button>
+    <p id="walletAddress">Not connected</p>
+
+    <hr />
+
+    <button id="voteYes">Vote YES 👍</button>
+    <button id="voteNo">Vote NO 👎</button>
+
+    <p id="status"></p>
+    <p id="votes"></p>
+
+    <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        const contractAddress = "0xC1392d66b4Ec7Ceb6928C978E436f5A31bEEfa66";
+        const abi = [
+          "function vote(bool _vote) public",
+          "function yesVotes() public view returns (uint)",
+          "function noVotes() public view returns (uint)",
+          "function getVotes() public view returns (uint, uint)",
+          "function hasVoted(address) public view returns (bool)",
+          "function userVote(address) public view returns (bool)"
+        ];
+
+        let provider, signer, contract;
+
+        async function connectWallet() {
+          if (window.ethereum) {
+            try {
+              provider = new ethers.providers.Web3Provider(window.ethereum);
+              await provider.send("eth_requestAccounts", []);
+              signer = provider.getSigner();
+              const address = await signer.getAddress();
+              document.getElementById("walletAddress").innerText =
+                "✅ Connected: " + address;
+
+              contract = new ethers.Contract(contractAddress, abi, signer);
+              document.getElementById("status").innerText =
+                "Wallet connected on Sepolia ✅";
+              updateVotes();
+            } catch (err) {
+              console.error(err);
+              document.getElementById("status").innerText =
+                "❌ Error connecting wallet.";
+            }
+          } else {
+            alert("MetaMask not detected!");
+          }
+        }
+
+        async function vote(choice) {
+          if (!contract) return alert("Please connect your wallet first!");
+          try {
+            const tx = await contract.vote(choice);
+            document.getElementById("status").innerText =
+              "🕒 Transaction pending...";
+            await tx.wait();
+            document.getElementById("status").innerText =
+              "✅ Vote submitted successfully!";
+            updateVotes();
+          } catch (err) {
+            console.error(err);
+            document.getElementById("status").innerText =
+              "❌ Error submitting vote.";
+          }
+        }
+
+        async function updateVotes() {
+          if (!contract) return;
+          try {
+            const [yes, no] = await contract.getVotes();
+            document.getElementById(
+              "votes"
+            ).innerText = `✅ YES: ${yes.toString()} | ❌ NO: ${no.toString()}`;
+            await showUserVote();
+          } catch (err) {
+            console.error(err);
+          }
+        }
+
+        async function showUserVote() {
+          if (!contract || !signer) return;
+          const address = await signer.getAddress();
+          const voted = await contract.hasVoted(address);
+          if (!voted) {
+            document.getElementById("status").innerText =
+              "🟡 You haven’t voted yet.";
+          } else {
+            const choice = await contract.userVote(address);
+            document.getElementById("status").innerText =
+              "🗳️ You voted: " + (choice ? "YES 👍" : "NO 👎");
+          }
+        }
+
+        // Event listeners
+        document
+          .getElementById("connectButton")
+          .addEventListener("click", connectWallet);
+        document
+          .getElementById("voteYes")
+          .addEventListener("click", () => vote(true));
+        document
+          .getElementById("voteNo")
+          .addEventListener("click", () => vote(false));
+      });
+    </script>
+  </body>
+</html>
